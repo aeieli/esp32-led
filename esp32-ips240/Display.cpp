@@ -18,49 +18,6 @@ DisplayManager::~DisplayManager() {
   delete spi;
 }
 
-void DisplayManager::renderAnimationFrame(bool forceClear,
-                                          unsigned long timestamp) {
-  if (currentAnimation == nullptr) return;
-
-  AnimationFrame& frame = currentAnimation->frames[currentFrame];
-  bool clearFirst =
-      forceClear || currentAnimation->clearBackground || frame.data == nullptr;
-
-  if (clearFirst) {
-    if (frameBuffer->getMode() == BUFFER_MODE_DIRECT) {
-      tft->fillScreen(ST77XX_BLACK);
-    } else {
-      frameBuffer->clear(ST77XX_BLACK);
-    }
-  }
-
-  if (frame.data != nullptr) {
-    int16_t drawX = currentAnimation->x == -1
-                        ? (SCREEN_WIDTH - frame.width) / 2
-                        : currentAnimation->x;
-    int16_t drawY = currentAnimation->y == -1
-                        ? (SCREEN_HEIGHT - frame.height) / 2
-                        : currentAnimation->y;
-
-    if (frameBuffer->getMode() == BUFFER_MODE_DIRECT) {
-      tft->startWrite();
-      tft->setAddrWindow(drawX, drawY, frame.width, frame.height);
-      tft->writePixels((uint16_t*)frame.data, frame.width * frame.height);
-      tft->endWrite();
-    } else {
-      frameBuffer->drawRect(drawX, drawY, frame.width, frame.height,
-                            frame.data);
-    }
-  }
-
-  if (frameBuffer->getMode() != BUFFER_MODE_DIRECT &&
-      (clearFirst || frame.data != nullptr)) {
-    frameBuffer->flushImmediate(tft);
-  }
-
-  lastFrameTime = timestamp;
-}
-
 void DisplayManager::begin(BufferMode bufferMode, uint32_t spiFreq) {
   // 初始化引脚
   pinMode(TFT_CS, OUTPUT);
@@ -254,8 +211,8 @@ void DisplayManager::playAnimation(Animation* anim) {
 
   currentAnimation = anim;
   currentFrame = 0;
+  lastFrameTime = millis();
   animationPlaying = true;
-  renderAnimationFrame(true, millis());
 }
 
 void DisplayManager::stopAnimation() {
@@ -269,22 +226,56 @@ void DisplayManager::updateAnimation() {
   unsigned long currentTime = millis();
   AnimationFrame& frame = currentAnimation->frames[currentFrame];
 
-  if (currentTime - lastFrameTime < frame.duration) {
-    return;
-  }
+  if (currentTime - lastFrameTime >= frame.duration) {
+    currentFrame++;
 
-  currentFrame++;
-
-  if (currentFrame >= currentAnimation->frameCount) {
-    if (currentAnimation->loop) {
-      currentFrame = 0;
-    } else {
-      stopAnimation();
-      return;
+    if (currentFrame >= currentAnimation->frameCount) {
+      if (currentAnimation->loop) {
+        currentFrame = 0;  // 循环播放
+      } else {
+        stopAnimation();  // 停止播放
+        return;
+      }
     }
-  }
 
-  renderAnimationFrame(false, currentTime);
+    // 显示当前帧
+    frame = currentAnimation->frames[currentFrame];
+
+    // 清除背景（如果需要）
+    if (currentAnimation->clearBackground) {
+      if (frameBuffer->getMode() == BUFFER_MODE_DIRECT) {
+        tft->fillScreen(ST77XX_BLACK);
+      } else {
+        frameBuffer->clear(ST77XX_BLACK);
+      }
+    }
+
+    // 计算显示位置
+    int16_t drawX = currentAnimation->x;
+    int16_t drawY = currentAnimation->y;
+
+    if (drawX == -1) {  // 居中显示
+      drawX = (SCREEN_WIDTH - frame.width) / 2;
+    }
+    if (drawY == -1) {  // 居中显示
+      drawY = (SCREEN_HEIGHT - frame.height) / 2;
+    }
+
+    // 绘制当前帧
+    if (frame.data != nullptr) {
+      if (frameBuffer->getMode() == BUFFER_MODE_DIRECT) {
+        tft->startWrite();
+        tft->setAddrWindow(drawX, drawY, frame.width, frame.height);
+        tft->writePixels((uint16_t*)frame.data, frame.width * frame.height);
+        tft->endWrite();
+      } else {
+        frameBuffer->drawRect(drawX, drawY, frame.width, frame.height, frame.data);
+        frameBuffer->flushImmediate(tft);  // 动画总是立即刷新
+      }
+    }
+
+    lastFrameTime = currentTime;
+  }
 }
 
 bool DisplayManager::isAnimationPlaying() {

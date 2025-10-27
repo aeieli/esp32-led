@@ -58,8 +58,6 @@ private:
   unsigned long lastFrameTime;
   bool animationPlaying;
 
-  void renderAnimationFrame(bool forceClear, unsigned long timestamp);
-
   // 配置
   uint32_t spiFrequency;
   bool autoFlush;  // 自动刷新模式

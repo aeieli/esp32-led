@@ -27,7 +27,7 @@ enum DemoMode {
   MODE_GRAPHICS
 };
 
-DemoMode currentMode = MODE_TEXT;
+DemoMode currentMode = MODE_ANIMATION;
 unsigned long lastModeChange = 0;
 const unsigned long MODE_DURATION = 5000;  // 每个模式持续5秒
 
@@ -35,8 +35,11 @@ void setup() {
   Serial.begin(115200);
   Serial.println("ESP32-S3 Display Demo Starting...");
 
-  // 初始化显示屏
-  display.begin();
+  // 初始化显示屏（使用单缓冲 + 高速SPI，解决动画花屏问题）
+  display.begin(BUFFER_MODE_SINGLE, SPI_FREQUENCY_FAST);
+
+  // 显示性能信息
+  display.printPerformanceInfo();
 
   // 显示启动画面
   showStartupScreen();
