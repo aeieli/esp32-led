@@ -1,8 +1,11 @@
 /*
- * ESP32-S3 IPS240 Display Demo
+ * ESP32-S3 IPS240 Display Demo with BLE & WiFi
  *
- * 使用模块化的 DisplayManager 类来管理显示屏
- * 支持文字、图片、动画等多种显示方式
+ * 功能：
+ * - BLE蓝牙配对和通信
+ * - 接收手机指令控制显示
+ * - WiFi配网和连接
+ * - 自动演示模式
  *
  * 接线：
  * TFT_CS   -> GPIO 5
@@ -15,9 +18,17 @@
 
 #include "Display.h"
 #include "ExampleImages.h"
+#include "BLEManager.h"
+#include "WiFiManager.h"
+#include "ConfigStorage.h"
+#include "CommandHandler.h"
 
-// 创建显示管理器实例
+// 创建模块实例
 DisplayManager display;
+BLEManager bleManager;
+WiFiManager wifiManager;
+ConfigStorage config;
+CommandHandler* commandHandler;  // 使用指针，在setup中初始化
 
 // 演示模式
 enum DemoMode {
@@ -31,47 +42,102 @@ DemoMode currentMode = MODE_ANIMATION;
 unsigned long lastModeChange = 0;
 const unsigned long MODE_DURATION = 5000;  // 每个模式持续5秒
 
+// 状态变量
+bool isManualMode = false;  // 手动控制模式
+bool wifiConnected = false;
+
+// 前向声明回调函数
+void onBLECommandReceived(String command);
+void onWiFiCredentialsReceived(String ssid, String password);
+
 void setup() {
   Serial.begin(115200);
-  Serial.println("ESP32-S3 Display Demo Starting...");
+  Serial.println("\n========================================");
+  Serial.println("ESP32-S3 Display with BLE & WiFi");
+  Serial.println("========================================");
 
-  // 初始化显示屏（使用单缓冲 + 高速SPI，解决动画花屏问题）
+  // 1. 初始化显示屏
   display.begin(BUFFER_MODE_SINGLE, SPI_FREQUENCY_FAST);
-
-  // 显示性能信息
   display.printPerformanceInfo();
-
-  // 显示启动画面
   showStartupScreen();
-  delay(2000);
+  delay(1500);
+
+  // 2. 初始化配置存储
+  config.begin();
+
+  // 3. 初始化BLE
+  bleManager.begin("ESP32-LED");
+  bleManager.setCommandCallback(onBLECommandReceived);
+  bleManager.setWiFiCredentialsCallback(onWiFiCredentialsReceived);
+  showBLEStatus();
+  delay(1500);
+
+  // 4. 初始化WiFi
+  wifiManager.begin();
+
+  // 检查是否有保存的WiFi配置
+  if (config.hasWiFiCredentials()) {
+    String ssid, password;
+    if (config.loadWiFiCredentials(ssid, password)) {
+      showWiFiConnecting(ssid);
+      if (wifiManager.connect(ssid, password)) {
+        wifiConnected = true;
+        showWiFiConnected();
+        delay(2000);
+      } else {
+        showWiFiFailed();
+        delay(2000);
+      }
+    }
+  } else {
+    showWiFiNotConfigured();
+    delay(1500);
+  }
+
+  // 5. 初始化指令处理器
+  commandHandler = new CommandHandler(&display, &bleManager);
+  commandHandler->begin();
+
+  // 6. 显示就绪界面
+  showReadyScreen();
+  delay(1500);
+
+  Serial.println("系统初始化完成!");
+  Serial.println("========================================\n");
 }
 
 void loop() {
   unsigned long currentTime = millis();
 
-  // 每5秒切换一次演示模式
-  if (currentTime - lastModeChange >= MODE_DURATION) {
-    lastModeChange = currentTime;
-    currentMode = (DemoMode)((currentMode + 1) % 4);
+  // 更新WiFi状态
+  wifiManager.update();
 
-    display.clear();
+  // 只在非手动模式下运行演示
+  if (!isManualMode) {
+    // 每5秒切换一次演示模式
+    if (currentTime - lastModeChange >= MODE_DURATION) {
+      lastModeChange = currentTime;
+      currentMode = (DemoMode)((currentMode + 1) % 4);
 
-    switch (currentMode) {
-      case MODE_TEXT:
-        showTextDemo();
-        break;
+      display.clear();
 
-      case MODE_IMAGES:
-        showImageDemo();
-        break;
+      switch (currentMode) {
+        case MODE_TEXT:
+          showTextDemo();
+          break;
 
-      case MODE_ANIMATION:
-        showAnimationDemo();
-        break;
+        case MODE_IMAGES:
+          showImageDemo();
+          break;
 
-      case MODE_GRAPHICS:
-        showGraphicsDemo();
-        break;
+        case MODE_ANIMATION:
+          showAnimationDemo();
+          break;
+
+        case MODE_GRAPHICS:
+          showGraphicsDemo();
+          break;
+      }
     }
   }
 
@@ -81,13 +147,130 @@ void loop() {
   delay(10);
 }
 
+// ========== BLE回调函数 ==========
+
+void onBLECommandReceived(String command) {
+  Serial.println("BLE指令: " + command);
+
+  // 检查是否是切换模式指令
+  if (command == "MODE:DEMO") {
+    // 切换回自动演示模式
+    isManualMode = false;
+    lastModeChange = millis();  // 重置计时器
+    Serial.println("切换到自动演示模式");
+  } else if (command == "MODE:MANUAL") {
+    // 显式切换到手动模式
+    isManualMode = true;
+    display.stopAnimation();  // 停止可能正在播放的动画
+    Serial.println("切换到手动模式");
+  } else if (!isManualMode) {
+    // 收到控制指令，自动切换到手动模式
+    isManualMode = true;
+    display.stopAnimation();  // 停止可能正在播放的动画
+    Serial.println("收到控制指令，自动切换到手动模式");
+  }
+
+  // 处理指令
+  commandHandler->handleCommand(command);
+}
+
+void onWiFiCredentialsReceived(String ssid, String password) {
+  Serial.println("收到WiFi配网请求");
+
+  // 显示连接界面
+  showWiFiConnecting(ssid);
+
+  // 尝试连接
+  if (wifiManager.connect(ssid, password)) {
+    wifiConnected = true;
+
+    // 保存配置
+    config.saveWiFiCredentials(ssid, password);
+
+    // 显示成功界面
+    showWiFiConnected();
+    bleManager.sendData("WiFi connected: " + wifiManager.getLocalIP());
+
+    delay(3000);
+  } else {
+    wifiConnected = false;
+    showWiFiFailed();
+    bleManager.sendData("WiFi connection failed");
+
+    delay(3000);
+  }
+}
+
 // ========== 演示函数 ==========
 
 void showStartupScreen() {
   display.clear(ST77XX_BLACK);
-  display.drawCenteredText("ESP32-S3", 100, ST77XX_CYAN, 3);
-  display.drawCenteredText("Display System", 130, ST77XX_WHITE, 2);
-  display.drawCenteredText("Modular Design", 160, ST77XX_GREEN, 1);
+  display.drawCenteredText("ESP32-S3", 90, ST77XX_CYAN, 3);
+  display.drawCenteredText("BLE & WiFi", 120, ST77XX_WHITE, 2);
+  display.drawCenteredText("Display System", 145, ST77XX_GREEN, 1);
+}
+
+void showBLEStatus() {
+  display.clear(ST77XX_BLACK);
+  display.drawCenteredText("BLE Status", 30, ST77XX_YELLOW, 2);
+  display.drawCenteredText("Device: ESP32-LED", 80, ST77XX_WHITE, 1);
+  display.drawCenteredText("Status: Advertising", 110, ST77XX_GREEN, 1);
+  display.drawCenteredText("Ready to pair", 140, ST77XX_CYAN, 1);
+}
+
+void showWiFiNotConfigured() {
+  display.clear(ST77XX_BLACK);
+  display.drawCenteredText("WiFi Status", 30, ST77XX_YELLOW, 2);
+  display.drawCenteredText("Not Configured", 100, ST77XX_ORANGE, 2);
+  display.drawCenteredText("Use BLE to setup", 130, ST77XX_WHITE, 1);
+}
+
+void showWiFiConnecting(String ssid) {
+  display.clear(ST77XX_BLACK);
+  display.drawCenteredText("Connecting WiFi", 60, ST77XX_YELLOW, 2);
+  display.drawCenteredText("SSID:", 100, ST77XX_WHITE, 1);
+  display.drawCenteredText(ssid.c_str(), 120, ST77XX_CYAN, 1);
+  display.drawCenteredText("Please wait...", 160, ST77XX_WHITE, 1);
+}
+
+void showWiFiConnected() {
+  display.clear(ST77XX_BLACK);
+  display.drawCenteredText("WiFi Connected!", 50, ST77XX_GREEN, 2);
+  display.drawCenteredText("SSID:", 90, ST77XX_WHITE, 1);
+  display.drawCenteredText(wifiManager.getSSID().c_str(), 110, ST77XX_CYAN, 1);
+  display.drawCenteredText("IP:", 140, ST77XX_WHITE, 1);
+  display.drawCenteredText(wifiManager.getLocalIP().c_str(), 160, ST77XX_YELLOW, 1);
+
+  String rssiText = String(wifiManager.getRSSI()) + " dBm";
+  display.drawCenteredText(rssiText.c_str(), 190, ST77XX_WHITE, 1);
+}
+
+void showWiFiFailed() {
+  display.clear(ST77XX_BLACK);
+  display.drawCenteredText("WiFi Failed", 80, ST77XX_RED, 2);
+  display.drawCenteredText("Connection timeout", 120, ST77XX_WHITE, 1);
+  display.drawCenteredText("Check credentials", 150, ST77XX_ORANGE, 1);
+}
+
+void showReadyScreen() {
+  display.clear(ST77XX_BLACK);
+  display.drawCenteredText("System Ready!", 70, ST77XX_GREEN, 2);
+
+  // BLE状态
+  if (bleManager.isConnected()) {
+    display.drawCenteredText("BLE: Connected", 110, ST77XX_CYAN, 1);
+  } else {
+    display.drawCenteredText("BLE: Waiting", 110, ST77XX_YELLOW, 1);
+  }
+
+  // WiFi状态
+  if (wifiConnected) {
+    display.drawCenteredText("WiFi: Connected", 130, ST77XX_CYAN, 1);
+  } else {
+    display.drawCenteredText("WiFi: Not connected", 130, ST77XX_ORANGE, 1);
+  }
+
+  display.drawCenteredText("Starting demo...", 170, ST77XX_WHITE, 1);
 }
 
 void showTextDemo() {
