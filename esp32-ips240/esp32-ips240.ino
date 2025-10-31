@@ -129,53 +129,47 @@ void loop() {
 
   // 只在非手动模式下运行演示
   if (!isManualMode) {
-    // 其他模式每5秒切换一次（包括贪吃蛇）
-    if (currentTime - lastModeChange >= MODE_DURATION) {
-      lastModeChange = currentTime;
+    // 贪吃蛇模式特殊处理：持续运行，不自动切换（DEMO2专属）
+    if (currentMode == MODE_SNAKE) {
+      snakeGame->update();
+    } else {
+      // 其他模式每5秒切换一次（DEMO循环：文本→图片→动画→图形）
+      if (currentTime - lastModeChange >= MODE_DURATION) {
+        lastModeChange = currentTime;
 
-      // 停止当前模式的后台活动
-      stopCurrentMode();
+        // 停止当前模式的后台活动
+        stopCurrentMode();
 
-      // 切换到下一个模式
-      currentMode = (DemoMode)((currentMode + 1) % 5);
-      display.clear();
+        // 切换到下一个模式（循环前4个模式，跳过贪吃蛇）
+        currentMode = (DemoMode)((currentMode + 1) % 4);
+        display.clear();
 
-      switch (currentMode) {
-        case MODE_TEXT:
-          showTextDemo();
-          break;
+        switch (currentMode) {
+          case MODE_TEXT:
+            showTextDemo();
+            break;
 
-        case MODE_IMAGES:
-          showImageDemo();
-          break;
+          case MODE_IMAGES:
+            showImageDemo();
+            break;
 
-        case MODE_ANIMATION:
-          showAnimationDemo();
-          break;
+          case MODE_ANIMATION:
+            showAnimationDemo();
+            break;
 
-        case MODE_GRAPHICS:
-          showGraphicsDemo();
-          break;
+          case MODE_GRAPHICS:
+            showGraphicsDemo();
+            break;
 
-        case MODE_SNAKE:
-          showSnakeDemo();
-          break;
+          default:
+            break;
+        }
       }
-    }
 
-    // 根据当前模式更新对应内容
-    switch (currentMode) {
-      case MODE_ANIMATION:
+      // 在动画模式下更新动画
+      if (currentMode == MODE_ANIMATION) {
         display.updateAnimation();
-        break;
-
-      case MODE_SNAKE:
-        snakeGame->update();
-        break;
-
-      // 其他模式不需要持续更新
-      default:
-        break;
+      }
     }
   }
 
