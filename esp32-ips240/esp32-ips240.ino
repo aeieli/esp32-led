@@ -268,12 +268,20 @@ void onBLECommandReceived(String command) {
     display.stopAnimation();  // 停止可能正在播放的动画
     bleManager.sendData("OK:Manual mode");
     Serial.println("切换到手动模式");
-  } else if (!isManualMode) {
-    // 收到控制指令，自动切换到手动模式
-    isManualMode = true;
-    isClockMode = false;  // 退出时钟模式
-    display.stopAnimation();  // 停止可能正在播放的动画
-    Serial.println("收到控制指令，自动切换到手动模式");
+  } else {
+    // 收到控制指令（TEXT, BRIGHTNESS, CLEAR等）
+    if (!isManualMode) {
+      // 从自动演示模式切换到手动模式
+      isManualMode = true;
+      display.stopAnimation();
+      Serial.println("收到控制指令，自动切换到手动模式");
+    }
+
+    // 退出时钟模式（如果正在时钟模式）
+    if (isClockMode) {
+      isClockMode = false;
+      Serial.println("退出时钟显示模式");
+    }
   }
 
   // 处理指令
