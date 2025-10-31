@@ -49,6 +49,7 @@ const unsigned long MODE_DURATION = 5000;  // 每个模式持续5秒
 
 // 状态变量
 bool isManualMode = false;  // 手动控制模式
+bool isClockMode = false;   // 时钟模式标志
 bool wifiConnected = false;
 
 // 前向声明回调函数
@@ -128,49 +129,78 @@ void loop() {
 
   // 只在非手动模式下运行演示
   if (!isManualMode) {
-    // 贪吃蛇模式特殊处理：持续运行，不自动切换
-    if (currentMode == MODE_SNAKE) {
-      snakeGame->update();
-    } else {
-      // 其他模式每5秒切换一次
-      if (currentTime - lastModeChange >= MODE_DURATION) {
-        lastModeChange = currentTime;
-        currentMode = (DemoMode)((currentMode + 1) % 5);
+    // 其他模式每5秒切换一次（包括贪吃蛇）
+    if (currentTime - lastModeChange >= MODE_DURATION) {
+      lastModeChange = currentTime;
 
-        display.clear();
+      // 停止当前模式的后台活动
+      stopCurrentMode();
 
-        switch (currentMode) {
-          case MODE_TEXT:
-            showTextDemo();
-            break;
+      // 切换到下一个模式
+      currentMode = (DemoMode)((currentMode + 1) % 5);
+      display.clear();
 
-          case MODE_IMAGES:
-            showImageDemo();
-            break;
+      switch (currentMode) {
+        case MODE_TEXT:
+          showTextDemo();
+          break;
 
-          case MODE_ANIMATION:
-            showAnimationDemo();
-            break;
+        case MODE_IMAGES:
+          showImageDemo();
+          break;
 
-          case MODE_GRAPHICS:
-            showGraphicsDemo();
-            break;
+        case MODE_ANIMATION:
+          showAnimationDemo();
+          break;
 
-          case MODE_SNAKE:
-            showSnakeDemo();
-            break;
-        }
+        case MODE_GRAPHICS:
+          showGraphicsDemo();
+          break;
+
+        case MODE_SNAKE:
+          showSnakeDemo();
+          break;
       }
+    }
+
+    // 根据当前模式更新对应内容
+    switch (currentMode) {
+      case MODE_ANIMATION:
+        display.updateAnimation();
+        break;
+
+      case MODE_SNAKE:
+        snakeGame->update();
+        break;
+
+      // 其他模式不需要持续更新
+      default:
+        break;
     }
   }
 
-  // 更新动画（如果正在播放）
-  display.updateAnimation();
-
-  // 更新时钟显示（如果时间已设置）
-  clockDisplay->update();
+  // 在时钟模式下更新时钟显示
+  if (isClockMode) {
+    clockDisplay->update();
+  }
 
   delay(10);
+}
+
+// 停止当前模式的后台活动
+void stopCurrentMode() {
+  switch (currentMode) {
+    case MODE_ANIMATION:
+      display.stopAnimation();
+      break;
+
+    case MODE_SNAKE:
+      // 贪吃蛇会在下次 begin() 时自动重置
+      break;
+
+    default:
+      break;
+  }
 }
 
 // ========== BLE回调函数 ==========
@@ -185,6 +215,7 @@ void onBLECommandReceived(String command) {
   if (cmd == "MODE:DEMO" || cmd == "DEMO" || cmd == "M:DEMO" || cmd == "D") {
     // 切换回自动演示模式（循环演示）
     isManualMode = false;
+    isClockMode = false;  // 退出时钟模式
     lastModeChange = millis();  // 重置计时器
     currentMode = MODE_TEXT;     // 从文本模式开始
     display.stopAnimation();
@@ -195,6 +226,7 @@ void onBLECommandReceived(String command) {
   } else if (cmd == "MODE:DEMO2" || cmd == "DEMO2" || cmd == "M:DEMO2" || cmd == "D2") {
     // 切换到贪吃蛇演示模式
     isManualMode = false;
+    isClockMode = false;  // 退出时钟模式
     currentMode = MODE_SNAKE;
     display.stopAnimation();
     display.clear();
@@ -204,6 +236,7 @@ void onBLECommandReceived(String command) {
   } else if (cmd == "MODE:CLOCK" || cmd == "CLOCK" || cmd == "M:CLOCK" || cmd == "CL") {
     // 切换到时钟模式
     isManualMode = true;  // 时钟模式不自动切换
+    isClockMode = true;   // 进入时钟模式
     display.stopAnimation();
     display.clear();
     clockDisplay->show();
@@ -212,12 +245,14 @@ void onBLECommandReceived(String command) {
   } else if (cmd == "MODE:MANUAL" || cmd == "M:MANUAL") {
     // 显式切换到手动模式
     isManualMode = true;
+    isClockMode = false;  // 退出时钟模式
     display.stopAnimation();  // 停止可能正在播放的动画
     bleManager.sendData("OK:Manual mode");
     Serial.println("切换到手动模式");
   } else if (!isManualMode) {
     // 收到控制指令，自动切换到手动模式
     isManualMode = true;
+    isClockMode = false;  // 退出时钟模式
     display.stopAnimation();  // 停止可能正在播放的动画
     Serial.println("收到控制指令，自动切换到手动模式");
   }
