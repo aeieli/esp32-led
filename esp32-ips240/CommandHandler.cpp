@@ -112,6 +112,22 @@ void CommandHandler::handleCommand(String command) {
       break;
     }
 
+    case CMD_SET_DATE: {
+      String param = extractParameter(command, "SETDATE:");
+      if (param.length() == 0) {
+        param = extractParameter(command, "SD:");
+      }
+      if (param.length() == 0) {
+        String cmdUpper = command;
+        cmdUpper.toUpperCase();
+        if (cmdUpper.startsWith("SD ")) {
+          param = command.substring(3);  // "SD " 后面的所有内容
+        }
+      }
+      executeSetDate(param);
+      break;
+    }
+
     default:
       Serial.println("未知指令: " + command);
       pBLE->sendData("ERROR:Unknown command");
@@ -142,6 +158,8 @@ CommandType CommandHandler::parseCommandType(const String& command) {
     return CMD_RESTART;
   } else if (cmd.startsWith("SETTIME:") || cmd.startsWith("ST ") || cmd.startsWith("ST:")) {
     return CMD_SET_TIME;
+  } else if (cmd.startsWith("SETDATE:") || cmd.startsWith("SD ") || cmd.startsWith("SD:")) {
+    return CMD_SET_DATE;
   }
 
   return CMD_UNKNOWN;
@@ -309,6 +327,86 @@ void CommandHandler::executeSetTime(const String& time) {
 
   pBLE->sendData("OK:Time set to " + String(timeStr));
   Serial.println("时间已设置为: " + String(timeStr));
+}
+
+void CommandHandler::executeSetDate(const String& date) {
+  if (!pClock) {
+    pBLE->sendData("ERROR:Clock not initialized");
+    Serial.println("错误: 时钟未初始化");
+    return;
+  }
+
+  if (date.length() == 0) {
+    pBLE->sendData("ERROR:Empty date");
+    return;
+  }
+
+  uint16_t year;
+  uint8_t month, day;
+
+  // 检查是否是8位数字格式 (YYYYMMDD)
+  if (date.length() == 8 && date.indexOf('-') == -1 && date.indexOf('/') == -1) {
+    // 8位数字格式：YYYYMMDD
+    String yearStr = date.substring(0, 4);
+    String monthStr = date.substring(4, 6);
+    String dayStr = date.substring(6, 8);
+
+    year = yearStr.toInt();
+    month = monthStr.toInt();
+    day = dayStr.toInt();
+  }
+  // 传统格式 YYYY-MM-DD 或 YYYY/MM/DD
+  else {
+    int firstSep = date.indexOf('-');
+    if (firstSep == -1) {
+      firstSep = date.indexOf('/');
+    }
+    int secondSep = date.indexOf('-', firstSep + 1);
+    if (secondSep == -1) {
+      secondSep = date.indexOf('/', firstSep + 1);
+    }
+
+    if (firstSep == -1 || secondSep == -1) {
+      pBLE->sendData("ERROR:Invalid date format. Use YYYYMMDD or YYYY-MM-DD");
+      Serial.println("错误: 日期格式错误，应使用 YYYYMMDD 或 YYYY-MM-DD");
+      return;
+    }
+
+    String yearStr = date.substring(0, firstSep);
+    String monthStr = date.substring(firstSep + 1, secondSep);
+    String dayStr = date.substring(secondSep + 1);
+
+    year = yearStr.toInt();
+    month = monthStr.toInt();
+    day = dayStr.toInt();
+  }
+
+  // 验证日期有效性
+  if (year < 2000 || year > 2099) {
+    pBLE->sendData("ERROR:Invalid year (2000-2099)");
+    Serial.println("错误: 年份无效");
+    return;
+  }
+  if (month < 1 || month > 12) {
+    pBLE->sendData("ERROR:Invalid month (1-12)");
+    Serial.println("错误: 月份无效");
+    return;
+  }
+  if (day < 1 || day > 31) {
+    pBLE->sendData("ERROR:Invalid day (1-31)");
+    Serial.println("错误: 日期无效");
+    return;
+  }
+
+  // 设置日期
+  pClock->setDate(year, month, day);
+
+  // 格式化显示日期（统一为 YYYY-MM-DD 格式）
+  char dateStr[11];
+  snprintf(dateStr, sizeof(dateStr), "%04d-%02d-%02d", year, month, day);
+
+  pBLE->sendData("OK:Date set to " + String(dateStr));
+  Serial.println("日期已设置为: " + String(dateStr));
 }
 
 String CommandHandler::buildStatusJson() {

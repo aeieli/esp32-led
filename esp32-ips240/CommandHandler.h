@@ -19,7 +19,8 @@ enum CommandType {
   CMD_SLEEP,            // 进入睡眠
   CMD_WAKEUP,           // 唤醒
   CMD_RESTART,          // 重启
-  CMD_SET_TIME          // 设置时间
+  CMD_SET_TIME,         // 设置时间
+  CMD_SET_DATE          // 设置日期
 };
 
 // 显示模式枚举
@@ -70,6 +71,7 @@ private:
   void executeWakeup();
   void executeRestart();
   void executeSetTime(const String& time);
+  void executeSetDate(const String& date);
 
   // 辅助方法
   String buildStatusJson();
