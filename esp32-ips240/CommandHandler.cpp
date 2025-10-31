@@ -260,23 +260,38 @@ void CommandHandler::executeSetTime(const String& time) {
     return;
   }
 
-  // 解析时间格式 HH:MM:SS
-  int firstColon = time.indexOf(':');
-  int secondColon = time.indexOf(':', firstColon + 1);
+  uint8_t hour, minute, second;
 
-  if (firstColon == -1 || secondColon == -1) {
-    pBLE->sendData("ERROR:Invalid time format. Use HH:MM:SS");
-    Serial.println("错误: 时间格式错误，应使用 HH:MM:SS");
-    return;
+  // 检查是否是6位数字格式 (hhmmss)
+  if (time.length() == 6 && time.indexOf(':') == -1) {
+    // 6位数字格式：hhmmss
+    String hourStr = time.substring(0, 2);
+    String minuteStr = time.substring(2, 4);
+    String secondStr = time.substring(4, 6);
+
+    hour = hourStr.toInt();
+    minute = minuteStr.toInt();
+    second = secondStr.toInt();
   }
+  // 传统格式 HH:MM:SS
+  else {
+    int firstColon = time.indexOf(':');
+    int secondColon = time.indexOf(':', firstColon + 1);
 
-  String hourStr = time.substring(0, firstColon);
-  String minuteStr = time.substring(firstColon + 1, secondColon);
-  String secondStr = time.substring(secondColon + 1);
+    if (firstColon == -1 || secondColon == -1) {
+      pBLE->sendData("ERROR:Invalid time format. Use HHMMSS or HH:MM:SS");
+      Serial.println("错误: 时间格式错误，应使用 HHMMSS 或 HH:MM:SS");
+      return;
+    }
 
-  uint8_t hour = hourStr.toInt();
-  uint8_t minute = minuteStr.toInt();
-  uint8_t second = secondStr.toInt();
+    String hourStr = time.substring(0, firstColon);
+    String minuteStr = time.substring(firstColon + 1, secondColon);
+    String secondStr = time.substring(secondColon + 1);
+
+    hour = hourStr.toInt();
+    minute = minuteStr.toInt();
+    second = secondStr.toInt();
+  }
 
   // 验证时间有效性
   if (hour >= 24 || minute >= 60 || second >= 60) {
@@ -287,8 +302,13 @@ void CommandHandler::executeSetTime(const String& time) {
 
   // 设置时间
   pClock->setTime(hour, minute, second);
-  pBLE->sendData("OK:Time set to " + time);
-  Serial.println("时间已设置为: " + time);
+
+  // 格式化显示时间（统一为 HH:MM:SS 格式）
+  char timeStr[9];
+  snprintf(timeStr, sizeof(timeStr), "%02d:%02d:%02d", hour, minute, second);
+
+  pBLE->sendData("OK:Time set to " + String(timeStr));
+  Serial.println("时间已设置为: " + String(timeStr));
 }
 
 String CommandHandler::buildStatusJson() {
