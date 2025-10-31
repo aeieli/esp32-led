@@ -8,11 +8,11 @@
 
 // OTA状态枚举
 enum OTAStatus {
-  OTA_IDLE,           // 空闲
-  OTA_UPDATING,       // 更新中
-  OTA_SUCCESS,        // 更新成功
-  OTA_FAILED,         // 更新失败
-  OTA_NO_WIFI         // WiFi未连接
+  OTAMGR_IDLE,           // 空闲
+  OTAMGR_UPDATING,       // 更新中
+  OTAMGR_SUCCESS,        // 更新成功
+  OTAMGR_FAILED,         // 更新失败
+  OTAMGR_NO_WIFI         // WiFi未连接
 };
 
 // 回调函数类型

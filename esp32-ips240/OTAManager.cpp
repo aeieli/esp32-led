@@ -1,7 +1,7 @@
 #include "OTAManager.h"
 
 OTAManager::OTAManager() {
-  status = OTA_IDLE;
+  status = OTAMGR_IDLE;
   progress = 0;
   progressCallback = nullptr;
   errorCallback = nullptr;
@@ -10,7 +10,7 @@ OTAManager::OTAManager() {
 void OTAManager::begin(const char* hostname, const char* password) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("警告: WiFi未连接，OTA功能将不可用");
-    status = OTA_NO_WIFI;
+    status = OTAMGR_NO_WIFI;
     return;
   }
 
@@ -57,8 +57,8 @@ void OTAManager::setupArduinoOTA(const char* hostname, const char* password) {
 
 void OTAManager::handle() {
   if (WiFi.status() != WL_CONNECTED) {
-    if (status != OTA_NO_WIFI) {
-      status = OTA_NO_WIFI;
+    if (status != OTAMGR_NO_WIFI) {
+      status = OTAMGR_NO_WIFI;
     }
     return;
   }
@@ -70,14 +70,14 @@ void OTAManager::handle() {
 bool OTAManager::updateFromURL(const char* url) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("错误: WiFi未连接");
-    status = OTA_NO_WIFI;
+    status = OTAMGR_NO_WIFI;
     return false;
   }
 
   Serial.println("开始HTTP OTA更新...");
   Serial.printf("URL: %s\n", url);
 
-  status = OTA_UPDATING;
+  status = OTAMGR_UPDATING;
   progress = 0;
 
   // 配置HTTP更新
@@ -120,17 +120,17 @@ bool OTAManager::updateFromURL(const char* url) {
       Serial.printf("HTTP更新失败 错误 (%d): %s\n",
                     httpUpdate.getLastError(),
                     httpUpdate.getLastErrorString().c_str());
-      status = OTA_FAILED;
+      status = OTAMGR_FAILED;
       return false;
 
     case HTTP_UPDATE_NO_UPDATES:
       Serial.println("HTTP更新: 无可用更新");
-      status = OTA_IDLE;
+      status = OTAMGR_IDLE;
       return false;
 
     case HTTP_UPDATE_OK:
       Serial.println("HTTP更新成功，重启中...");
-      status = OTA_SUCCESS;
+      status = OTAMGR_SUCCESS;
       return true;
   }
 
@@ -151,12 +151,12 @@ OTAStatus OTAManager::getStatus() {
 
 String OTAManager::getStatusString() {
   switch (status) {
-    case OTA_IDLE:      return "IDLE";
-    case OTA_UPDATING:  return "UPDATING";
-    case OTA_SUCCESS:   return "SUCCESS";
-    case OTA_FAILED:    return "FAILED";
-    case OTA_NO_WIFI:   return "NO_WIFI";
-    default:            return "UNKNOWN";
+    case OTAMGR_IDLE:      return "IDLE";
+    case OTAMGR_UPDATING:  return "UPDATING";
+    case OTAMGR_SUCCESS:   return "SUCCESS";
+    case OTAMGR_FAILED:    return "FAILED";
+    case OTAMGR_NO_WIFI:   return "NO_WIFI";
+    default:               return "UNKNOWN";
   }
 }
 
@@ -173,7 +173,7 @@ void OTAManager::onOTAStart() {
   }
 
   Serial.println("[Arduino OTA] 开始更新 " + type);
-  status = OTA_UPDATING;
+  status = OTAMGR_UPDATING;
   progress = 0;
 
   if (progressCallback) {
@@ -183,7 +183,7 @@ void OTAManager::onOTAStart() {
 
 void OTAManager::onOTAEnd() {
   Serial.println("\n[Arduino OTA] 更新完成");
-  status = OTA_SUCCESS;
+  status = OTAMGR_SUCCESS;
   progress = 100;
 
   if (progressCallback) {
@@ -223,7 +223,7 @@ void OTAManager::onOTAError(ota_error_t error) {
       break;
   }
 
-  status = OTA_FAILED;
+  status = OTAMGR_FAILED;
 
   if (errorCallback) {
     errorCallback(error);
