@@ -7,6 +7,7 @@
 
 // 前向声明
 class ClockDisplay;
+class OTAManager;
 
 // 支持的指令枚举
 enum CommandType {
@@ -20,7 +21,8 @@ enum CommandType {
   CMD_WAKEUP,           // 唤醒
   CMD_RESTART,          // 重启
   CMD_SET_TIME,         // 设置时间
-  CMD_SET_DATE          // 设置日期
+  CMD_SET_DATE,         // 设置日期
+  CMD_OTA_UPDATE        // OTA更新
 };
 
 // 显示模式枚举
@@ -48,6 +50,9 @@ public:
   // 时钟管理
   void setClockDisplay(ClockDisplay* clock);
 
+  // OTA管理
+  void setOTAManager(OTAManager* ota);
+
   // 发送状态到手机
   void sendStatus();
 
@@ -55,6 +60,7 @@ private:
   DisplayManager* pDisplay;
   BLEManager* pBLE;
   ClockDisplay* pClock;
+  OTAManager* pOTA;
   DisplayMode currentMode;
 
   // 指令解析
@@ -72,6 +78,7 @@ private:
   void executeRestart();
   void executeSetTime(const String& time);
   void executeSetDate(const String& date);
+  void executeOTAUpdate(const String& url);
 
   // 辅助方法
   String buildStatusJson();

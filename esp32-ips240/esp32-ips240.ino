@@ -24,6 +24,7 @@
 #include "CommandHandler.h"
 #include "SnakeGame.h"
 #include "ClockDisplay.h"
+#include "OTAManager.h"
 
 // 创建模块实例
 DisplayManager display;
@@ -33,6 +34,7 @@ ConfigStorage config;
 CommandHandler* commandHandler;  // 使用指针，在setup中初始化
 SnakeGame* snakeGame;             // 贪吃蛇游戏实例
 ClockDisplay* clockDisplay;       // 时钟显示实例
+OTAManager* otaManager;           // OTA更新管理器
 
 // 演示模式
 enum DemoMode {
@@ -55,6 +57,51 @@ bool wifiConnected = false;
 // 前向声明回调函数
 void onBLECommandReceived(String command);
 void onWiFiCredentialsReceived(String ssid, String password);
+void onOTAProgress(unsigned int progress, unsigned int total);
+
+// OTA进度显示回调
+void onOTAProgress(unsigned int progress, unsigned int total) {
+  static unsigned long lastUpdate = 0;
+  unsigned long now = millis();
+
+  // 每200ms更新一次屏幕，避免刷新太频繁
+  if (now - lastUpdate < 200 && progress < total) {
+    return;
+  }
+  lastUpdate = now;
+
+  int percent = (progress * 100) / total;
+
+  display.clear(ST77XX_BLACK);
+
+  // 标题
+  display.drawCenteredText("OTA Updating", 40, ST77XX_YELLOW, 2);
+
+  // 进度百分比
+  String percentText = String(percent) + "%";
+  display.drawCenteredText(percentText.c_str(), 80, ST77XX_WHITE, 3);
+
+  // 进度条外框
+  int barX = 20;
+  int barY = 120;
+  int barWidth = 200;
+  int barHeight = 20;
+  display.drawRect(barX, barY, barWidth, barHeight, ST77XX_WHITE);
+
+  // 进度条填充
+  int fillWidth = (barWidth - 4) * percent / 100;
+  if (fillWidth > 0) {
+    display.fillRect(barX + 2, barY + 2, fillWidth, barHeight - 4, ST77XX_GREEN);
+  }
+
+  // 底部提示
+  display.drawCenteredText("Please wait...", 160, ST77XX_CYAN, 1);
+  display.drawCenteredText("Do not power off!", 180, ST77XX_RED, 1);
+
+  display.flush();
+
+  Serial.printf("OTA进度: %d%%\n", percent);
+}
 
 void setup() {
   Serial.begin(115200);
@@ -125,11 +172,23 @@ void setup() {
   commandHandler->setClockDisplay(clockDisplay);  // 设置时钟
   commandHandler->begin();
 
-  // 8. 显示就绪界面
+  // 8. 初始化OTA管理器
+  otaManager = new OTAManager();
+  otaManager->setProgressCallback(onOTAProgress);  // 设置进度回调
+  if (wifiConnected) {
+    otaManager->begin("ESP32-LED", "");  // 设备名称和密码（空密码表示无密码）
+    Serial.println("OTA管理器已启动 (Arduino OTA可用)");
+    Serial.printf("通过Arduino IDE上传: %s.local\n", "ESP32-LED");
+  } else {
+    Serial.println("WiFi未连接，OTA功能受限 (仅支持HTTP OTA)");
+  }
+  commandHandler->setOTAManager(otaManager);  // 设置OTA管理器到指令处理器
+
+  // 9. 显示就绪界面
   showReadyScreen();
   delay(1500);
 
-  // 9. 启动第一个演示模式
+  // 10. 启动第一个演示模式
   currentMode = MODE_TEXT;  // 从文本模式开始
   display.clear();
   showTextDemo();
@@ -144,6 +203,11 @@ void loop() {
 
   // 更新WiFi状态
   wifiManager.update();
+
+  // 处理OTA请求（Arduino OTA）
+  if (otaManager) {
+    otaManager->handle();
+  }
 
   // 只在非手动模式下运行演示
   if (!isManualMode) {

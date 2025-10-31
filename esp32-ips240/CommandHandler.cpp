@@ -1,10 +1,12 @@
 #include "CommandHandler.h"
 #include "ClockDisplay.h"
+#include "OTAManager.h"
 
 CommandHandler::CommandHandler(DisplayManager* display, BLEManager* ble) {
   pDisplay = display;
   pBLE = ble;
   pClock = nullptr;
+  pOTA = nullptr;
   currentMode = MODE_DEMO;
 }
 
@@ -14,6 +16,10 @@ void CommandHandler::begin() {
 
 void CommandHandler::setClockDisplay(ClockDisplay* clock) {
   pClock = clock;
+}
+
+void CommandHandler::setOTAManager(OTAManager* ota) {
+  pOTA = ota;
 }
 
 void CommandHandler::handleCommand(String command) {
@@ -128,6 +134,19 @@ void CommandHandler::handleCommand(String command) {
       break;
     }
 
+    case CMD_OTA_UPDATE: {
+      String param = extractParameter(command, "OTA:");
+      if (param.length() == 0) {
+        String cmdUpper = command;
+        cmdUpper.toUpperCase();
+        if (cmdUpper.startsWith("OTA ")) {
+          param = command.substring(4);  // "OTA " 后面的所有内容
+        }
+      }
+      executeOTAUpdate(param);
+      break;
+    }
+
     default:
       Serial.println("未知指令: " + command);
       pBLE->sendData("ERROR:Unknown command");
@@ -160,6 +179,8 @@ CommandType CommandHandler::parseCommandType(const String& command) {
     return CMD_SET_TIME;
   } else if (cmd.startsWith("SETDATE:") || cmd.startsWith("SD ") || cmd.startsWith("SD:")) {
     return CMD_SET_DATE;
+  } else if (cmd.startsWith("OTA:") || cmd.startsWith("OTA ")) {
+    return CMD_OTA_UPDATE;
   }
 
   return CMD_UNKNOWN;
@@ -434,4 +455,53 @@ String CommandHandler::buildStatusJson() {
   json += "}";
 
   return json;
+}
+
+void CommandHandler::executeOTAUpdate(const String& url) {
+  if (!pOTA) {
+    pBLE->sendData("ERROR:OTA not initialized");
+    Serial.println("错误: OTA管理器未初始化");
+    return;
+  }
+
+  if (url.length() == 0) {
+    pBLE->sendData("ERROR:Empty URL");
+    Serial.println("错误: URL为空");
+    return;
+  }
+
+  // 检查URL格式
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    pBLE->sendData("ERROR:Invalid URL. Must start with http:// or https://");
+    Serial.println("错误: URL格式无效");
+    return;
+  }
+
+  // 通知开始更新
+  pBLE->sendData("OK:Starting OTA update...");
+  Serial.println("开始OTA更新: " + url);
+
+  // 显示更新提示
+  pDisplay->clear();
+  pDisplay->drawCenteredText("OTA Updating...", 60, ST77XX_YELLOW, 2);
+  pDisplay->drawCenteredText("Please wait", 100, ST77XX_WHITE, 1);
+
+  // 执行更新
+  bool success = pOTA->updateFromURL(url.c_str());
+
+  if (success) {
+    pDisplay->clear();
+    pDisplay->drawCenteredText("Update Success!", 80, ST77XX_GREEN, 2);
+    pDisplay->drawCenteredText("Restarting...", 120, ST77XX_WHITE, 1);
+    pBLE->sendData("OK:Update successful, restarting...");
+    Serial.println("OTA更新成功，重启中...");
+    delay(2000);
+    ESP.restart();
+  } else {
+    pDisplay->clear();
+    pDisplay->drawCenteredText("Update Failed!", 80, ST77XX_RED, 2);
+    pDisplay->drawCenteredText(pOTA->getStatusString().c_str(), 120, ST77XX_WHITE, 1);
+    pBLE->sendData("ERROR:Update failed - " + pOTA->getStatusString());
+    Serial.println("OTA更新失败: " + pOTA->getStatusString());
+  }
 }
