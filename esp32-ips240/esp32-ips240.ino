@@ -63,7 +63,7 @@ void setup() {
   Serial.println("========================================");
 
   // 1. 初始化显示屏
-  display.begin(BUFFER_MODE_SINGLE, SPI_FREQUENCY_FAST);
+  display.begin(BUFFER_MODE_DIRECT, SPI_FREQUENCY_FAST);  // 使用直接模式
   display.printPerformanceInfo();
   Serial.println("开始显示启动界面...");
   showStartupScreen();
