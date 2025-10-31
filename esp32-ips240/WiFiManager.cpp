@@ -149,3 +149,43 @@ void WiFiManager::updateStatus() {
     }
   }
 }
+
+// ========== NTP时间同步 ==========
+
+bool WiFiManager::syncTimeWithNTP(const char* ntpServer,
+                                   long gmtOffset_sec,
+                                   int daylightOffset_sec) {
+  if (!isConnected()) {
+    Serial.println("错误: WiFi未连接，无法同步NTP时间");
+    return false;
+  }
+
+  Serial.println("开始NTP时间同步...");
+  Serial.printf("NTP服务器: %s\n", ntpServer);
+  Serial.printf("时区偏移: GMT%+d\n", gmtOffset_sec / 3600);
+
+  // 配置NTP服务器和时区
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  // 等待时间同步（最多等待10秒）
+  struct tm timeinfo;
+  int retry = 0;
+  while (retry < 20) {  // 20次 * 500ms = 10秒
+    if (getLocalTime(&timeinfo)) {
+      Serial.println("NTP时间同步成功!");
+      Serial.printf("当前时间: %04d-%02d-%02d %02d:%02d:%02d\n",
+                    timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                    timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+      return true;
+    }
+    delay(500);
+    retry++;
+  }
+
+  Serial.println("NTP时间同步超时");
+  return false;
+}
+
+bool WiFiManager::getTime(struct tm &timeinfo) {
+  return getLocalTime(&timeinfo);
+}

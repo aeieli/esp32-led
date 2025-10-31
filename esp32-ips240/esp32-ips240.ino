@@ -80,7 +80,11 @@ void setup() {
   showBLEStatus();
   delay(1500);
 
-  // 4. 初始化WiFi
+  // 4. 初始化时钟显示（在WiFi之前，因为NTP同步需要它）
+  clockDisplay = new ClockDisplay(&display);
+  clockDisplay->begin();
+
+  // 5. 初始化WiFi
   wifiManager.begin();
 
   // 检查是否有保存的WiFi配置
@@ -92,6 +96,16 @@ void setup() {
         wifiConnected = true;
         showWiFiConnected();
         delay(2000);
+
+        // WiFi连接成功后，自动同步NTP时间
+        if (wifiManager.syncTimeWithNTP()) {
+          struct tm timeinfo;
+          if (wifiManager.getTime(timeinfo)) {
+            clockDisplay->setTime(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+            clockDisplay->setDate(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+            Serial.println("时钟已自动同步NTP时间");
+          }
+        }
       } else {
         showWiFiFailed();
         delay(2000);
@@ -101,10 +115,6 @@ void setup() {
     showWiFiNotConfigured();
     delay(1500);
   }
-
-  // 5. 初始化时钟显示
-  clockDisplay = new ClockDisplay(&display);
-  clockDisplay->begin();
 
   // 6. 初始化指令处理器
   commandHandler = new CommandHandler(&display, &bleManager);
@@ -279,6 +289,17 @@ void onWiFiCredentialsReceived(String ssid, String password) {
     // 显示成功界面
     showWiFiConnected();
     bleManager.sendData("WiFi connected: " + wifiManager.getLocalIP());
+
+    // WiFi连接成功后，自动同步NTP时间
+    if (wifiManager.syncTimeWithNTP()) {
+      struct tm timeinfo;
+      if (wifiManager.getTime(timeinfo)) {
+        clockDisplay->setTime(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+        clockDisplay->setDate(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+        bleManager.sendData("Time synced via NTP");
+        Serial.println("时钟已自动同步NTP时间");
+      }
+    }
 
     delay(3000);
   } else {

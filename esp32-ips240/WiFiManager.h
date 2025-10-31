@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <time.h>
 
 // WiFi连接状态枚举
 enum WiFiConnectionStatus {
@@ -43,6 +44,12 @@ public:
 
   // 更新方法（在loop中调用）
   void update();
+
+  // NTP时间同步
+  bool syncTimeWithNTP(const char* ntpServer = "pool.ntp.org",
+                       long gmtOffset_sec = 28800,  // GMT+8 (中国时区)
+                       int daylightOffset_sec = 0);
+  bool getTime(struct tm &timeinfo);
 
 private:
   WiFiConnectionStatus status;
