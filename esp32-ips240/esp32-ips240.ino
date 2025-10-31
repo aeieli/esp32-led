@@ -43,7 +43,7 @@ enum DemoMode {
   MODE_SNAKE        // 新增：贪吃蛇模式
 };
 
-DemoMode currentMode = MODE_ANIMATION;
+DemoMode currentMode = MODE_TEXT;  // 初始模式（会在setup中设置）
 unsigned long lastModeChange = 0;
 const unsigned long MODE_DURATION = 5000;  // 每个模式持续5秒
 
@@ -116,6 +116,12 @@ void setup() {
   // 8. 显示就绪界面
   showReadyScreen();
   delay(1500);
+
+  // 9. 启动第一个演示模式
+  currentMode = MODE_TEXT;  // 从文本模式开始
+  display.clear();
+  showTextDemo();
+  lastModeChange = millis();  // 记录启动时间
 
   Serial.println("系统初始化完成!");
   Serial.println("========================================\n");
