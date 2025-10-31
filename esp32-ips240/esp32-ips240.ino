@@ -65,7 +65,9 @@ void setup() {
   // 1. 初始化显示屏
   display.begin(BUFFER_MODE_SINGLE, SPI_FREQUENCY_FAST);
   display.printPerformanceInfo();
+  Serial.println("开始显示启动界面...");
   showStartupScreen();
+  Serial.println("启动界面显示完成");
   delay(1500);
 
   // 2. 初始化配置存储
@@ -295,6 +297,7 @@ void showStartupScreen() {
   display.drawCenteredText("ESP32-S3", 90, ST77XX_CYAN, 3);
   display.drawCenteredText("BLE & WiFi", 120, ST77XX_WHITE, 2);
   display.drawCenteredText("Display System", 145, ST77XX_GREEN, 1);
+  display.flush();  // 强制刷新到屏幕
 }
 
 void showBLEStatus() {
@@ -303,6 +306,7 @@ void showBLEStatus() {
   display.drawCenteredText("Device: ESP32-LED", 80, ST77XX_WHITE, 1);
   display.drawCenteredText("Status: Advertising", 110, ST77XX_GREEN, 1);
   display.drawCenteredText("Ready to pair", 140, ST77XX_CYAN, 1);
+  display.flush();
 }
 
 void showWiFiNotConfigured() {
@@ -310,6 +314,7 @@ void showWiFiNotConfigured() {
   display.drawCenteredText("WiFi Status", 30, ST77XX_YELLOW, 2);
   display.drawCenteredText("Not Configured", 100, ST77XX_ORANGE, 2);
   display.drawCenteredText("Use BLE to setup", 130, ST77XX_WHITE, 1);
+  display.flush();
 }
 
 void showWiFiConnecting(String ssid) {
@@ -318,6 +323,7 @@ void showWiFiConnecting(String ssid) {
   display.drawCenteredText("SSID:", 100, ST77XX_WHITE, 1);
   display.drawCenteredText(ssid.c_str(), 120, ST77XX_CYAN, 1);
   display.drawCenteredText("Please wait...", 160, ST77XX_WHITE, 1);
+  display.flush();
 }
 
 void showWiFiConnected() {
@@ -330,6 +336,7 @@ void showWiFiConnected() {
 
   String rssiText = String(wifiManager.getRSSI()) + " dBm";
   display.drawCenteredText(rssiText.c_str(), 190, ST77XX_WHITE, 1);
+  display.flush();
 }
 
 void showWiFiFailed() {
@@ -337,6 +344,7 @@ void showWiFiFailed() {
   display.drawCenteredText("WiFi Failed", 80, ST77XX_RED, 2);
   display.drawCenteredText("Connection timeout", 120, ST77XX_WHITE, 1);
   display.drawCenteredText("Check credentials", 150, ST77XX_ORANGE, 1);
+  display.flush();
 }
 
 void showReadyScreen() {
@@ -358,6 +366,7 @@ void showReadyScreen() {
   }
 
   display.drawCenteredText("Starting demo...", 170, ST77XX_WHITE, 1);
+  display.flush();
 }
 
 void showTextDemo() {
@@ -378,6 +387,7 @@ void showTextDemo() {
 
   // 底部信息
   display.drawCenteredText("Mode: TEXT", 220, ST77XX_MAGENTA, 1);
+  display.flush();
 }
 
 void showImageDemo() {
@@ -400,6 +410,7 @@ void showImageDemo() {
 
   // 底部信息
   display.drawCenteredText("Mode: IMAGES", 220, ST77XX_MAGENTA, 1);
+  display.flush();
 }
 
 void showAnimationDemo() {
@@ -416,6 +427,7 @@ void showAnimationDemo() {
 
   // 底部信息
   display.drawCenteredText("Mode: ANIMATION", 220, ST77XX_MAGENTA, 1);
+  display.flush();
 }
 
 void showGraphicsDemo() {
@@ -445,6 +457,7 @@ void showGraphicsDemo() {
 
   // 底部信息
   display.drawCenteredText("Mode: GRAPHICS", 220, ST77XX_MAGENTA, 1);
+  display.flush();
 }
 
 void showSnakeDemo() {
