@@ -73,18 +73,22 @@ void setup() {
   // 2. 初始化配置存储
   config.begin();
 
-  // 3. 初始化BLE
+  // 3. 初始化时钟显示（在WiFi和BLE之前）
+  clockDisplay = new ClockDisplay(&display);
+  clockDisplay->begin();
+
+  // 4. 初始化贪吃蛇游戏（在BLE之前，避免空指针）
+  snakeGame = new SnakeGame(&display);
+  randomSeed(micros());  // 随机数种子
+
+  // 5. 初始化BLE
   bleManager.begin("ESP32-LED");
   bleManager.setCommandCallback(onBLECommandReceived);
   bleManager.setWiFiCredentialsCallback(onWiFiCredentialsReceived);
   showBLEStatus();
   delay(1500);
 
-  // 4. 初始化时钟显示（在WiFi之前，因为NTP同步需要它）
-  clockDisplay = new ClockDisplay(&display);
-  clockDisplay->begin();
-
-  // 5. 初始化WiFi
+  // 6. 初始化WiFi
   wifiManager.begin();
 
   // 检查是否有保存的WiFi配置
@@ -116,14 +120,10 @@ void setup() {
     delay(1500);
   }
 
-  // 6. 初始化指令处理器
+  // 7. 初始化指令处理器
   commandHandler = new CommandHandler(&display, &bleManager);
   commandHandler->setClockDisplay(clockDisplay);  // 设置时钟
   commandHandler->begin();
-
-  // 7. 初始化贪吃蛇游戏
-  snakeGame = new SnakeGame(&display);
-  randomSeed(micros());  // 随机数种子
 
   // 8. 显示就绪界面
   showReadyScreen();
