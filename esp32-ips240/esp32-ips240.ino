@@ -22,6 +22,7 @@
 #include "WiFiManager.h"
 #include "ConfigStorage.h"
 #include "CommandHandler.h"
+#include "SnakeGame.h"
 
 // 创建模块实例
 DisplayManager display;
@@ -29,13 +30,15 @@ BLEManager bleManager;
 WiFiManager wifiManager;
 ConfigStorage config;
 CommandHandler* commandHandler;  // 使用指针，在setup中初始化
+SnakeGame* snakeGame;             // 贪吃蛇游戏实例
 
 // 演示模式
 enum DemoMode {
   MODE_TEXT,
   MODE_IMAGES,
   MODE_ANIMATION,
-  MODE_GRAPHICS
+  MODE_GRAPHICS,
+  MODE_SNAKE        // 新增：贪吃蛇模式
 };
 
 DemoMode currentMode = MODE_ANIMATION;
@@ -98,7 +101,11 @@ void setup() {
   commandHandler = new CommandHandler(&display, &bleManager);
   commandHandler->begin();
 
-  // 6. 显示就绪界面
+  // 6. 初始化贪吃蛇游戏
+  snakeGame = new SnakeGame(&display);
+  randomSeed(micros());  // 随机数种子
+
+  // 7. 显示就绪界面
   showReadyScreen();
   delay(1500);
 
@@ -114,29 +121,38 @@ void loop() {
 
   // 只在非手动模式下运行演示
   if (!isManualMode) {
-    // 每5秒切换一次演示模式
-    if (currentTime - lastModeChange >= MODE_DURATION) {
-      lastModeChange = currentTime;
-      currentMode = (DemoMode)((currentMode + 1) % 4);
+    // 贪吃蛇模式特殊处理：持续运行，不自动切换
+    if (currentMode == MODE_SNAKE) {
+      snakeGame->update();
+    } else {
+      // 其他模式每5秒切换一次
+      if (currentTime - lastModeChange >= MODE_DURATION) {
+        lastModeChange = currentTime;
+        currentMode = (DemoMode)((currentMode + 1) % 5);
 
-      display.clear();
+        display.clear();
 
-      switch (currentMode) {
-        case MODE_TEXT:
-          showTextDemo();
-          break;
+        switch (currentMode) {
+          case MODE_TEXT:
+            showTextDemo();
+            break;
 
-        case MODE_IMAGES:
-          showImageDemo();
-          break;
+          case MODE_IMAGES:
+            showImageDemo();
+            break;
 
-        case MODE_ANIMATION:
-          showAnimationDemo();
-          break;
+          case MODE_ANIMATION:
+            showAnimationDemo();
+            break;
 
-        case MODE_GRAPHICS:
-          showGraphicsDemo();
-          break;
+          case MODE_GRAPHICS:
+            showGraphicsDemo();
+            break;
+
+          case MODE_SNAKE:
+            showSnakeDemo();
+            break;
+        }
       }
     }
   }
@@ -153,15 +169,30 @@ void onBLECommandReceived(String command) {
   Serial.println("BLE指令: " + command);
 
   // 检查是否是切换模式指令
-  if (command == "MODE:DEMO") {
-    // 切换回自动演示模式
+  if (command == "MODE:DEMO" || command == "DEMO") {
+    // 切换回自动演示模式（循环演示）
     isManualMode = false;
     lastModeChange = millis();  // 重置计时器
+    currentMode = MODE_TEXT;     // 从文本模式开始
+    display.stopAnimation();
+    display.clear();
+    showTextDemo();
+    bleManager.sendData("OK:Auto demo mode");
     Serial.println("切换到自动演示模式");
+  } else if (command == "MODE:DEMO2" || command == "DEMO2") {
+    // 切换到贪吃蛇演示模式
+    isManualMode = false;
+    currentMode = MODE_SNAKE;
+    display.stopAnimation();
+    display.clear();
+    showSnakeDemo();
+    bleManager.sendData("OK:Snake game mode");
+    Serial.println("切换到贪吃蛇演示模式");
   } else if (command == "MODE:MANUAL") {
     // 显式切换到手动模式
     isManualMode = true;
     display.stopAnimation();  // 停止可能正在播放的动画
+    bleManager.sendData("OK:Manual mode");
     Serial.println("切换到手动模式");
   } else if (!isManualMode) {
     // 收到控制指令，自动切换到手动模式
@@ -322,9 +353,9 @@ void showAnimationDemo() {
   display.drawCenteredText("Animation Demo", 20, ST77XX_YELLOW, 2);
 
   // 显示说明
-  display.drawCenteredText("Beating Heart", 100, ST77XX_WHITE, 1);
+  display.drawCenteredText("Beating Heart", 50, ST77XX_WHITE, 1);
 
-  // 播放心跳动画
+  // 播放心跳动画（居中显示在屏幕中央）
   display.playAnimation(&heartBeatAnimation);
 
   // 底部信息
@@ -358,4 +389,10 @@ void showGraphicsDemo() {
 
   // 底部信息
   display.drawCenteredText("Mode: GRAPHICS", 220, ST77XX_MAGENTA, 1);
+}
+
+void showSnakeDemo() {
+  // 贪吃蛇游戏演示
+  snakeGame->begin();
+  Serial.println("贪吃蛇游戏开始!");
 }
