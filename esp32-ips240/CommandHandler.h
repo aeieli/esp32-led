@@ -5,6 +5,9 @@
 #include "Display.h"
 #include "BLEManager.h"
 
+// 前向声明
+class ClockDisplay;
+
 // 支持的指令枚举
 enum CommandType {
   CMD_UNKNOWN,
@@ -15,7 +18,8 @@ enum CommandType {
   CMD_GET_STATUS,       // 获取状态
   CMD_SLEEP,            // 进入睡眠
   CMD_WAKEUP,           // 唤醒
-  CMD_RESTART           // 重启
+  CMD_RESTART,          // 重启
+  CMD_SET_TIME          // 设置时间
 };
 
 // 显示模式枚举
@@ -40,12 +44,16 @@ public:
   void setMode(DisplayMode mode);
   DisplayMode getMode();
 
+  // 时钟管理
+  void setClockDisplay(ClockDisplay* clock);
+
   // 发送状态到手机
   void sendStatus();
 
 private:
   DisplayManager* pDisplay;
   BLEManager* pBLE;
+  ClockDisplay* pClock;
   DisplayMode currentMode;
 
   // 指令解析
@@ -61,6 +69,7 @@ private:
   void executeSleep();
   void executeWakeup();
   void executeRestart();
+  void executeSetTime(const String& time);
 
   // 辅助方法
   String buildStatusJson();

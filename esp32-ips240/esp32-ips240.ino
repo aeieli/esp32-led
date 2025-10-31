@@ -23,6 +23,7 @@
 #include "ConfigStorage.h"
 #include "CommandHandler.h"
 #include "SnakeGame.h"
+#include "ClockDisplay.h"
 
 // 创建模块实例
 DisplayManager display;
@@ -31,6 +32,7 @@ WiFiManager wifiManager;
 ConfigStorage config;
 CommandHandler* commandHandler;  // 使用指针，在setup中初始化
 SnakeGame* snakeGame;             // 贪吃蛇游戏实例
+ClockDisplay* clockDisplay;       // 时钟显示实例
 
 // 演示模式
 enum DemoMode {
@@ -97,15 +99,20 @@ void setup() {
     delay(1500);
   }
 
-  // 5. 初始化指令处理器
+  // 5. 初始化时钟显示
+  clockDisplay = new ClockDisplay(&display);
+  clockDisplay->begin();
+
+  // 6. 初始化指令处理器
   commandHandler = new CommandHandler(&display, &bleManager);
+  commandHandler->setClockDisplay(clockDisplay);  // 设置时钟
   commandHandler->begin();
 
-  // 6. 初始化贪吃蛇游戏
+  // 7. 初始化贪吃蛇游戏
   snakeGame = new SnakeGame(&display);
   randomSeed(micros());  // 随机数种子
 
-  // 7. 显示就绪界面
+  // 8. 显示就绪界面
   showReadyScreen();
   delay(1500);
 
@@ -160,6 +167,9 @@ void loop() {
   // 更新动画（如果正在播放）
   display.updateAnimation();
 
+  // 更新时钟显示（如果时间已设置）
+  clockDisplay->update();
+
   delay(10);
 }
 
@@ -169,7 +179,10 @@ void onBLECommandReceived(String command) {
   Serial.println("BLE指令: " + command);
 
   // 检查是否是切换模式指令
-  if (command == "MODE:DEMO" || command == "DEMO") {
+  String cmd = command;
+  cmd.toUpperCase();
+
+  if (cmd == "MODE:DEMO" || cmd == "DEMO" || cmd == "M:DEMO" || cmd == "D") {
     // 切换回自动演示模式（循环演示）
     isManualMode = false;
     lastModeChange = millis();  // 重置计时器
@@ -179,7 +192,7 @@ void onBLECommandReceived(String command) {
     showTextDemo();
     bleManager.sendData("OK:Auto demo mode");
     Serial.println("切换到自动演示模式");
-  } else if (command == "MODE:DEMO2" || command == "DEMO2") {
+  } else if (cmd == "MODE:DEMO2" || cmd == "DEMO2" || cmd == "M:DEMO2" || cmd == "D2") {
     // 切换到贪吃蛇演示模式
     isManualMode = false;
     currentMode = MODE_SNAKE;
@@ -188,7 +201,15 @@ void onBLECommandReceived(String command) {
     showSnakeDemo();
     bleManager.sendData("OK:Snake game mode");
     Serial.println("切换到贪吃蛇演示模式");
-  } else if (command == "MODE:MANUAL") {
+  } else if (cmd == "MODE:CLOCK" || cmd == "CLOCK" || cmd == "M:CLOCK" || cmd == "CL") {
+    // 切换到时钟模式
+    isManualMode = true;  // 时钟模式不自动切换
+    display.stopAnimation();
+    display.clear();
+    clockDisplay->show();
+    bleManager.sendData("OK:Clock mode");
+    Serial.println("切换到时钟模式");
+  } else if (cmd == "MODE:MANUAL" || cmd == "M:MANUAL") {
     // 显式切换到手动模式
     isManualMode = true;
     display.stopAnimation();  // 停止可能正在播放的动画

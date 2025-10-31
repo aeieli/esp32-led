@@ -1,13 +1,19 @@
 #include "CommandHandler.h"
+#include "ClockDisplay.h"
 
 CommandHandler::CommandHandler(DisplayManager* display, BLEManager* ble) {
   pDisplay = display;
   pBLE = ble;
+  pClock = nullptr;
   currentMode = MODE_DEMO;
 }
 
 void CommandHandler::begin() {
   Serial.println("指令处理器已初始化");
+}
+
+void CommandHandler::setClockDisplay(ClockDisplay* clock) {
+  pClock = clock;
 }
 
 void CommandHandler::handleCommand(String command) {
@@ -22,21 +28,57 @@ void CommandHandler::handleCommand(String command) {
   CommandType cmdType = parseCommandType(command);
 
   switch (cmdType) {
-    case CMD_SET_TEXT:
-      executeSetText(extractParameter(command, "TEXT:"));
+    case CMD_SET_TEXT: {
+      String param = extractParameter(command, "TEXT:");
+      if (param.length() == 0) {
+        param = extractParameter(command, "T:");
+      }
+      if (param.length() == 0) {
+        String cmdUpper = command;
+        cmdUpper.toUpperCase();
+        if (cmdUpper.startsWith("T ")) {
+          param = command.substring(2);  // "T " 后面的所有内容
+        }
+      }
+      executeSetText(param);
       break;
+    }
 
-    case CMD_SET_BRIGHTNESS:
-      executeSetBrightness(extractParameter(command, "BRIGHTNESS:"));
+    case CMD_SET_BRIGHTNESS: {
+      String param = extractParameter(command, "BRIGHTNESS:");
+      if (param.length() == 0) {
+        param = extractParameter(command, "B:");
+      }
+      if (param.length() == 0) {
+        String cmdUpper = command;
+        cmdUpper.toUpperCase();
+        if (cmdUpper.startsWith("B ")) {
+          param = command.substring(2);  // "B " 后面的所有内容
+        }
+      }
+      executeSetBrightness(param);
       break;
+    }
 
     case CMD_CLEAR_SCREEN:
       executeClearScreen();
       break;
 
-    case CMD_SET_MODE:
-      executeSetMode(extractParameter(command, "MODE:"));
+    case CMD_SET_MODE: {
+      String param = extractParameter(command, "MODE:");
+      if (param.length() == 0) {
+        param = extractParameter(command, "M:");
+      }
+      if (param.length() == 0) {
+        String cmdUpper = command;
+        cmdUpper.toUpperCase();
+        if (cmdUpper.startsWith("M ")) {
+          param = command.substring(2);  // "M " 后面的所有内容
+        }
+      }
+      executeSetMode(param);
       break;
+    }
 
     case CMD_GET_STATUS:
       executeGetStatus();
@@ -54,6 +96,22 @@ void CommandHandler::handleCommand(String command) {
       executeRestart();
       break;
 
+    case CMD_SET_TIME: {
+      String param = extractParameter(command, "SETTIME:");
+      if (param.length() == 0) {
+        param = extractParameter(command, "ST:");
+      }
+      if (param.length() == 0) {
+        String cmdUpper = command;
+        cmdUpper.toUpperCase();
+        if (cmdUpper.startsWith("ST ")) {
+          param = command.substring(3);  // "ST " 后面的所有内容
+        }
+      }
+      executeSetTime(param);
+      break;
+    }
+
     default:
       Serial.println("未知指令: " + command);
       pBLE->sendData("ERROR:Unknown command");
@@ -65,22 +123,25 @@ CommandType CommandHandler::parseCommandType(const String& command) {
   String cmd = command;
   cmd.toUpperCase();
 
-  if (cmd.startsWith("TEXT:")) {
+  // 完整格式和简化格式指令
+  if (cmd.startsWith("TEXT:") || cmd.startsWith("T ") || cmd.startsWith("T:")) {
     return CMD_SET_TEXT;
-  } else if (cmd.startsWith("BRIGHTNESS:")) {
+  } else if (cmd.startsWith("BRIGHTNESS:") || cmd.startsWith("B ") || cmd.startsWith("B:")) {
     return CMD_SET_BRIGHTNESS;
-  } else if (cmd == "CLEAR") {
+  } else if (cmd == "CLEAR" || cmd == "C") {
     return CMD_CLEAR_SCREEN;
-  } else if (cmd.startsWith("MODE:")) {
+  } else if (cmd.startsWith("MODE:") || cmd.startsWith("M ") || cmd.startsWith("M:")) {
     return CMD_SET_MODE;
-  } else if (cmd == "STATUS" || cmd == "GET_STATUS") {
+  } else if (cmd == "STATUS" || cmd == "GET_STATUS" || cmd == "S") {
     return CMD_GET_STATUS;
   } else if (cmd == "SLEEP") {
     return CMD_SLEEP;
-  } else if (cmd == "WAKEUP" || cmd == "WAKE") {
+  } else if (cmd == "WAKEUP" || cmd == "WAKE" || cmd == "W") {
     return CMD_WAKEUP;
-  } else if (cmd == "RESTART" || cmd == "REBOOT") {
+  } else if (cmd == "RESTART" || cmd == "REBOOT" || cmd == "R") {
     return CMD_RESTART;
+  } else if (cmd.startsWith("SETTIME:") || cmd.startsWith("ST ") || cmd.startsWith("ST:")) {
+    return CMD_SET_TIME;
   }
 
   return CMD_UNKNOWN;
@@ -187,6 +248,49 @@ void CommandHandler::sendStatus() {
   executeGetStatus();
 }
 
+void CommandHandler::executeSetTime(const String& time) {
+  if (!pClock) {
+    pBLE->sendData("ERROR:Clock not initialized");
+    Serial.println("错误: 时钟未初始化");
+    return;
+  }
+
+  if (time.length() == 0) {
+    pBLE->sendData("ERROR:Empty time");
+    return;
+  }
+
+  // 解析时间格式 HH:MM:SS
+  int firstColon = time.indexOf(':');
+  int secondColon = time.indexOf(':', firstColon + 1);
+
+  if (firstColon == -1 || secondColon == -1) {
+    pBLE->sendData("ERROR:Invalid time format. Use HH:MM:SS");
+    Serial.println("错误: 时间格式错误，应使用 HH:MM:SS");
+    return;
+  }
+
+  String hourStr = time.substring(0, firstColon);
+  String minuteStr = time.substring(firstColon + 1, secondColon);
+  String secondStr = time.substring(secondColon + 1);
+
+  uint8_t hour = hourStr.toInt();
+  uint8_t minute = minuteStr.toInt();
+  uint8_t second = secondStr.toInt();
+
+  // 验证时间有效性
+  if (hour >= 24 || minute >= 60 || second >= 60) {
+    pBLE->sendData("ERROR:Invalid time values");
+    Serial.println("错误: 时间值无效");
+    return;
+  }
+
+  // 设置时间
+  pClock->setTime(hour, minute, second);
+  pBLE->sendData("OK:Time set to " + time);
+  Serial.println("时间已设置为: " + time);
+}
+
 String CommandHandler::buildStatusJson() {
   // 构建简单的状态字符串（JSON格式）
   String json = "{";
@@ -202,6 +306,13 @@ String CommandHandler::buildStatusJson() {
   json += "\",";
   json += "\"uptime\":" + String(millis() / 1000);
   json += ",\"heap\":" + String(ESP.getFreeHeap());
+
+  // 添加时钟时间（如果有）
+  if (pClock && pClock->isTimeSet()) {
+    json += ",\"time\":\"" + pClock->getTimeString() + "\"";
+    json += ",\"date\":\"" + pClock->getDateString() + "\"";
+  }
+
   json += "}";
 
   return json;
