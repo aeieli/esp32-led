@@ -62,17 +62,11 @@ void ClockDisplay::update() {
     return;
   }
 
-  // 每秒更新一次时间
+  // 每秒更新一次时间（仅内部计时，不刷新屏幕）
   unsigned long currentTime = millis();
   if (currentTime - lastUpdateTime >= 1000) {
     updateTime();
     lastUpdateTime = currentTime;
-  }
-
-  // 每秒刷新显示（如果在时钟模式）
-  if (currentTime - lastDisplayTime >= 1000) {
-    displayClock();
-    lastDisplayTime = currentTime;
   }
 }
 

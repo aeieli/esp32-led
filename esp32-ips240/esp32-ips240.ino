@@ -191,9 +191,16 @@ void loop() {
     }
   }
 
-  // 在时钟模式下更新时钟显示
+  // 时钟一直在后台计时（如果时间已设置）
+  clockDisplay->update();
+
+  // 在时钟模式下，每秒刷新显示
   if (isClockMode) {
-    clockDisplay->update();
+    static unsigned long lastClockRefresh = 0;
+    if (currentTime - lastClockRefresh >= 1000) {
+      clockDisplay->show();
+      lastClockRefresh = currentTime;
+    }
   }
 
   delay(10);
